@@ -12,13 +12,10 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     var nameArray = [String]()
     var idArray = [UUID]()
-    var imageArray = [UIImage?]()
-    var artistArray = [String]()
-    var yearArray = [Int]()
-    var selectedImage = UIImage()
-    var selectedArtist = ""
-    var selectedName = ""
-    var selectedYear = 0
+    var selectedPainting = ""
+    var selectedPaintingId : UUID?
+    
+
     
 
     @IBOutlet weak var tableView: UITableView!
@@ -39,16 +36,13 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     @objc func getData(){
         nameArray.removeAll(keepingCapacity: false)
         idArray.removeAll(keepingCapacity: false)
-        imageArray.removeAll(keepingCapacity: false)
-        artistArray.removeAll(keepingCapacity: false)
-        yearArray.removeAll(keepingCapacity: false)
         let appDelegate = UIApplication.shared.delegate as! AppDelegate
         let context = appDelegate.persistentContainer.viewContext
         let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "Paintings")
         fetchRequest.returnsObjectsAsFaults = false
         do{
           let results = try context.fetch(fetchRequest)
-            
+            if results.count > 0 {
             for result in results as! [NSManagedObject] {
                
                 if let name = result.value(forKey: "name") as? String {
@@ -57,32 +51,20 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
                 if let id = result.value(forKey: "id") as? UUID {
                     idArray.append(id)
                 }
-                if let imageData = result.value(forKey: "image") as? Data {
-                    let image = UIImage(data: imageData)
-                    imageArray.append(image)
-                    
-                }
-                if let artist = result.value(forKey: "artist") as? String {
-                    artistArray.append(artist)
-                    print("artist\(artistArray.count)")
-                }
-                if let year = result.value(forKey: "year") as? Int {
-                    yearArray.append(year)
-                }
-             
+        
 
                 tableView.reloadData()
             }
+          }
         } catch {
             print("error")
         }
-        
-       
         
     }
     
     
     @objc func addButtonClicked() {
+        selectedPainting = ""
         performSegue(withIdentifier: "toDetailsVC", sender: nil)
     }
 
@@ -101,22 +83,58 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.reloadData()
-        selectedName = nameArray[indexPath.row]
-        selectedImage = imageArray[indexPath.row]! 
-        selectedYear = yearArray[indexPath.row]
-        selectedArtist = artistArray[indexPath.row]
-        performSegue(withIdentifier: "toSavedDetailsVC", sender: nil)
+        selectedPainting = nameArray[indexPath.row]
+        selectedPaintingId = idArray[indexPath.row]
+        performSegue(withIdentifier: "toDetailsVC", sender: nil)
+        
     }
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        if segue.identifier == "toSavedDetailsVC" {
-        let destinationVC = segue.destination as! SavedDetailsViewController
-            destinationVC.artist = selectedArtist
-            destinationVC.name = selectedName
-            destinationVC.year = selectedYear
-           
-            destinationVC.imageV = selectedImage
+        if segue.identifier == "toDetailsVC" {
+        let destinationVC = segue.destination as! DetailsViewController
+            destinationVC.chosenPainting = selectedPainting
+            destinationVC.chosenPaintingId = selectedPaintingId
+    
+        }
+    }
+    
+    
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        if editingStyle == .delete {
+            let appdelegate = UIApplication.shared.delegate as! AppDelegate
+            let context = appdelegate.persistentContainer.viewContext
+            let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "Paintings")
+            let stringUUID = idArray[indexPath.row].uuidString
+            fetchRequest.predicate = NSPredicate(format: "id = %@", stringUUID)
+            fetchRequest.returnsObjectsAsFaults = false
+            do{
+                let results = try context.fetch(fetchRequest)
+                if results.count > 0 {
+                    for result in results as! [NSManagedObject] {
+                        if let id = result.value(forKey: "id") as? UUID {
+                            if id == idArray[indexPath.row] {
+                                context.delete(result)
+                                nameArray.remove(at: indexPath.row)
+                                idArray.remove(at: indexPath.row)
+                                tableView.reloadData()
+                                
+                                do {
+                                   try context.save()
+                                }catch {
+                                    print("error")
+                                }
+                            }
+                            break
+                        }
+                        
+                    }
+                }
+            }catch{
+                print("error")
+            }
+            
+            
+            
             
         }
     }
